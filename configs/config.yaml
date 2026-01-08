@@ -6,10 +6,12 @@ defaults:
 
 # Model configuration (must match ASRConfig parameter names)
 model:
-  audio_model_id: openai/whisper-large-v3-turbo
-  text_model_id: HuggingFaceTB/SmolLM3-3B
+  # audio_model_id: openai/whisper-large-v3-turbo
+  audio_model_id: openai/whisper-large-v2
+  # text_model_id: HuggingFaceTB/SmolLM3-3B
+  text_model_id: Qwen/Qwen3-0.6B
   system_prompt: "/no_think /system_override"
-  projector_type: mlp  # Options: mlp, mosa, moe, qformer
+  projector_type: mlp # Options: mlp, mosa, moe, qformer
 
   # Projector settings
   projector_pool_stride: 4

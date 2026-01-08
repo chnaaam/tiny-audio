@@ -1,14 +1,15 @@
 # LoquaciousSet dataset configuration
 datasets:
-  - path: speechbrain/LoquaciousSet
-    name: medium  # Options: clean, medium, large
+  # - path: speechbrain/LoquaciousSet
+  - path: kresnik/zeroth_korean
+    # name: dev # Options: clean, medium, large
     audio_column: wav
     text_column: text
     task: transcribe
     train_splits:
       - train
     eval_splits:
-      - dev
+      - test
 
 # Audio processing
 sample_rate: 16000
