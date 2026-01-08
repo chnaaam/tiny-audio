@@ -10,7 +10,7 @@ from rich.console import Console
 from rich.table import Table
 
 from scripts.eval.audio import TextNormalizer
-from scripts.eval.datasets import (
+from scripts.eval.eval_datasets import (
     ALIGNMENT_DATASETS,
     DATASET_REGISTRY,
     DIARIZATION_DATASETS,
@@ -93,9 +93,7 @@ def save_diarization_results(
         for i, r in enumerate(results, 1):
             f.write(f"Sample {i}\n")
             f.write(f"  DER: {r.der:.2f}%\n")
-            f.write(
-                f"  Components: conf={r.confusion:.2f}%, miss={r.missed:.2f}%, fa={r.false_alarm:.2f}%\n"
-            )
+            f.write(f"  Components: conf={r.confusion:.2f}%, miss={r.missed:.2f}%, fa={r.false_alarm:.2f}%\n")
             f.write(f"  Speakers: ref={r.num_speakers_ref}, hyp={r.num_speakers_hyp}\n")
             f.write(f"  Time: {r.time:.2f}s\n")
             f.write("-" * 80 + "\n")
@@ -137,12 +135,8 @@ def save_alignment_results(
             f.write(f"Sample {i}\n")
             f.write(f"  Aligned: {r.num_aligned_words}/{r.num_ref_words} words\n")
             if r.num_aligned_words > 0:
-                mae_start = sum(abs(p - ref) for p, ref in zip(r.pred_starts, r.ref_starts)) / len(
-                    r.pred_starts
-                )
-                mae_end = sum(abs(p - ref) for p, ref in zip(r.pred_ends, r.ref_ends)) / len(
-                    r.pred_ends
-                )
+                mae_start = sum(abs(p - ref) for p, ref in zip(r.pred_starts, r.ref_starts)) / len(r.pred_starts)
+                mae_end = sum(abs(p - ref) for p, ref in zip(r.pred_ends, r.ref_ends)) / len(r.pred_ends)
                 f.write(f"  MAE (start): {mae_start * 1000:.1f}ms\n")
                 f.write(f"  MAE (end): {mae_end * 1000:.1f}ms\n")
             f.write(f"  Time: {r.time:.2f}s\n")
@@ -179,9 +173,7 @@ def print_asr_metrics(dataset_name: str, metrics: dict):
 
     if "avg_ttfb" in metrics:
         table.add_row("Avg TTFB", f"{metrics['avg_ttfb'] * 1000:.0f}ms")
-        table.add_row(
-            "TTFB Range", f"{metrics['min_ttfb'] * 1000:.0f}ms - {metrics['max_ttfb'] * 1000:.0f}ms"
-        )
+        table.add_row("TTFB Range", f"{metrics['min_ttfb'] * 1000:.0f}ms - {metrics['max_ttfb'] * 1000:.0f}ms")
     if "avg_processing" in metrics:
         table.add_row("Avg Processing", f"{metrics['avg_processing'] * 1000:.0f}ms")
 
@@ -242,33 +234,20 @@ def main():
         choices=["best", "universal", "slam_1", "nano"],
         help="AssemblyAI model (default: slam_1)",
     )
-    parser.add_argument(
-        "--streaming", action="store_true", help="Use streaming evaluation (for local or AAI)"
-    )
+    parser.add_argument("--streaming", action="store_true", help="Use streaming evaluation (for local or AAI)")
     parser.add_argument("--hf-token", default=None, help="HuggingFace token for diarization models")
-    parser.add_argument(
-        "--num-speakers", type=int, default=None, help="Number of speakers (for diarization)"
-    )
-    parser.add_argument(
-        "--min-speakers", type=int, default=None, help="Min speakers (for diarization)"
-    )
-    parser.add_argument(
-        "--max-speakers", type=int, default=None, help="Max speakers (for diarization)"
-    )
-    parser.add_argument(
-        "--config", default=None, help="Dataset config override (e.g., 'en' for CommonVoice)"
-    )
+    parser.add_argument("--num-speakers", type=int, default=None, help="Number of speakers (for diarization)")
+    parser.add_argument("--min-speakers", type=int, default=None, help="Min speakers (for diarization)")
+    parser.add_argument("--max-speakers", type=int, default=None, help="Max speakers (for diarization)")
+    parser.add_argument("--config", default=None, help="Dataset config override (e.g., 'en' for CommonVoice)")
     parser.add_argument("--output-dir", default="outputs", help="Output directory for results")
-    parser.add_argument(
-        "--user-prompt", type=str, default=None, help="Custom user prompt for the model"
-    )
+    parser.add_argument("--user-prompt", type=str, default=None, help="Custom user prompt for the model")
     args = parser.parse_args()
 
     # Expand "all" to ASR datasets only (exclude diarization and alignment)
     if "all" in args.datasets:
         args.datasets = [
-            k for k in DATASET_REGISTRY.keys()
-            if k not in DIARIZATION_DATASETS and k not in ALIGNMENT_DATASETS
+            k for k in DATASET_REGISTRY.keys() if k not in DIARIZATION_DATASETS and k not in ALIGNMENT_DATASETS
         ]
 
     for dataset_name in args.datasets:
@@ -284,9 +263,7 @@ def main():
             if args.model == "assemblyai":
                 api_key = os.environ.get("ASSEMBLYAI_API_KEY", "")
                 if not api_key:
-                    console.print(
-                        "[red]Error: ASSEMBLYAI_API_KEY environment variable not set[/red]"
-                    )
+                    console.print("[red]Error: ASSEMBLYAI_API_KEY environment variable not set[/red]")
                     sys.exit(1)
                 evaluator = AssemblyAIDiarizationEvaluator(
                     api_key=api_key,
@@ -321,9 +298,7 @@ def main():
             if args.model == "assemblyai":
                 api_key = os.environ.get("ASSEMBLYAI_API_KEY", "")
                 if not api_key:
-                    console.print(
-                        "[red]Error: ASSEMBLYAI_API_KEY environment variable not set[/red]"
-                    )
+                    console.print("[red]Error: ASSEMBLYAI_API_KEY environment variable not set[/red]")
                     sys.exit(1)
                 evaluator = AssemblyAIAlignmentEvaluator(
                     api_key=api_key,

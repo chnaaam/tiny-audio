@@ -111,15 +111,20 @@ DATASET_REGISTRY: dict[str, DatasetConfig] = {
         default_split="dev_clean",
         words_field="words",
     ),
+    "zeroth_korean": DatasetConfig(
+        name="zeroth_korean",
+        path="kresnik/zeroth_korean",
+        audio_field="wav",
+        text_field="text",
+        default_split="test",
+    ),
 }
 
 DIARIZATION_DATASETS = {"callhome"}
 ALIGNMENT_DATASETS = {"librispeech-alignments"}
 
 
-def load_eval_dataset(
-    name: str, split: str, config_override: str | None = None, decode_audio: bool = True
-):
+def load_eval_dataset(name: str, split: str, config_override: str | None = None, decode_audio: bool = True):
     """Load any dataset by name with unified interface."""
     if name not in DATASET_REGISTRY:
         raise ValueError(f"Unknown dataset: {name}. Available: {list(DATASET_REGISTRY.keys())}")
