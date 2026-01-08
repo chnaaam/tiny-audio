@@ -151,7 +151,7 @@ class ASRModel(PreTrainedModel, GenerationMixin):
     _is_loading_from_pretrained: bool = False
     _pretrained_model_path: Optional[str] = None
 
-    TRANSCRIBE_PROMPT = "Transcribe: "
+    DEFAULT_TRANSCRIBE_PROMPT = "Transcribe: "
 
     @classmethod
     def from_pretrained(cls, pretrained_model_name_or_path, *args, **kwargs):
@@ -199,6 +199,8 @@ class ASRModel(PreTrainedModel, GenerationMixin):
         super().__init__(config)
 
         self.system_prompt = config.system_prompt
+        # Use user_prompt from config, fallback to default if not set
+        self.user_prompt = getattr(config, "user_prompt", None) or self.DEFAULT_TRANSCRIBE_PROMPT
         target_dtype = getattr(torch, config.model_dtype)
 
         # Audio encoder (frozen)
@@ -305,17 +307,13 @@ class ASRModel(PreTrainedModel, GenerationMixin):
         # Auto-detect dimensions if not specified
         if config.encoder_dim is None:
             enc_cfg = self.audio_tower.config
-            config.encoder_dim = getattr(enc_cfg, "hidden_size", None) or getattr(
-                enc_cfg, "d_model", None
-            )
+            config.encoder_dim = getattr(enc_cfg, "hidden_size", None) or getattr(enc_cfg, "d_model", None)
             if config.encoder_dim is None:
                 raise ValueError("Could not auto-detect encoder_dim. Please specify in config.")
 
         if config.llm_dim is None:
             dec_cfg = self.language_model.config
-            config.llm_dim = getattr(dec_cfg, "hidden_size", None) or getattr(
-                dec_cfg, "d_model", None
-            )
+            config.llm_dim = getattr(dec_cfg, "hidden_size", None) or getattr(dec_cfg, "d_model", None)
             if config.llm_dim is None:
                 raise ValueError("Could not auto-detect llm_dim. Please specify in config.")
 
@@ -324,8 +322,7 @@ class ASRModel(PreTrainedModel, GenerationMixin):
         projector_class = PROJECTOR_CLASSES.get(projector_type)
         if projector_class is None:
             raise ValueError(
-                f"Unknown projector_type: {projector_type}. "
-                f"Valid options: {list(PROJECTOR_CLASSES.keys())}"
+                f"Unknown projector_type: {projector_type}. " f"Valid options: {list(PROJECTOR_CLASSES.keys())}"
             )
         projector = projector_class(config)
 
@@ -339,17 +336,14 @@ class ASRModel(PreTrainedModel, GenerationMixin):
 
         # Set pad token
         if (
-            self.tokenizer.pad_token is None
-            or self.tokenizer.pad_token_id == self.tokenizer.eos_token_id
+            self.tokenizer.pad_token is None or self.tokenizer.pad_token_id == self.tokenizer.eos_token_id
         ) and "<|finetune_right_pad_id|>" in self.tokenizer.get_vocab():
             self.tokenizer.pad_token = "<|finetune_right_pad_id|>"
 
         # Add audio token
         existing_special = getattr(self.tokenizer, "additional_special_tokens", None) or []
         if "<audio>" not in existing_special:
-            self.tokenizer.add_special_tokens(
-                {"additional_special_tokens": existing_special + ["<audio>"]}
-            )
+            self.tokenizer.add_special_tokens({"additional_special_tokens": existing_special + ["<audio>"]})
             self.language_model.resize_token_embeddings(len(self.tokenizer), mean_resizing=False)
 
         self.audio_token_id = self.tokenizer.convert_tokens_to_ids("<audio>")
@@ -373,9 +367,7 @@ class ASRModel(PreTrainedModel, GenerationMixin):
         if hasattr(self.language_model, "_set_gradient_checkpointing"):
             self.language_model._set_gradient_checkpointing(enable, gradient_checkpointing_func)
         elif hasattr(self.language_model, "gradient_checkpointing_enable") and enable:
-            self.language_model.gradient_checkpointing_enable(
-                gradient_checkpointing_kwargs={"use_reentrant": False}
-            )
+            self.language_model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
         elif hasattr(self.language_model, "gradient_checkpointing_disable") and not enable:
             self.language_model.gradient_checkpointing_disable()
 
@@ -462,9 +454,7 @@ class ASRModel(PreTrainedModel, GenerationMixin):
 
         # Create valid mask for variable-length samples and extract only real embeddings
         max_len = audio_embeds.shape[1]
-        valid_mask = (
-            torch.arange(max_len, device=audio_embeds.device)[None, :] < projector_lengths[:, None]
-        )
+        valid_mask = torch.arange(max_len, device=audio_embeds.device)[None, :] < projector_lengths[:, None]
         return audio_embeds[valid_mask]
 
     def forward(
@@ -564,6 +554,7 @@ class ASRModel(PreTrainedModel, GenerationMixin):
         audio_attention_mask: Optional[torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
         system_prompt: Optional[str] = None,
+        user_prompt: Optional[str] = None,
         **generate_kwargs,
     ) -> torch.Tensor:
         """Generate transcription from audio input.
@@ -571,6 +562,15 @@ class ASRModel(PreTrainedModel, GenerationMixin):
         Can be called in two ways:
         1. With input_ids containing <audio> tokens (from processor)
         2. With just audio, and we build the prompt internally
+
+        Args:
+            input_ids: Optional pre-tokenized input IDs with <audio> tokens
+            input_features: Mel spectrogram features (batch, n_mels, mel_len)
+            audio_attention_mask: Mask for real vs padded mel frames
+            attention_mask: Attention mask for input_ids
+            system_prompt: Override system prompt (default: config.system_prompt)
+            user_prompt: Override user prompt (default: "Transcribe: ")
+            **generate_kwargs: Additional generation arguments
         """
         if input_features is None:
             raise ValueError("input_features required for generation")
@@ -589,11 +589,18 @@ class ASRModel(PreTrainedModel, GenerationMixin):
             audio_placeholder = "<audio>" * num_audio_tokens
 
             system_prompt = system_prompt or self.system_prompt
+            transcribe_prompt = user_prompt or self.user_prompt
+
+            # Replace single <audio> placeholder with correct number of tokens
+            if "<audio>" in transcribe_prompt:
+                user_content = transcribe_prompt.replace("<audio>", audio_placeholder)
+            else:
+                user_content = transcribe_prompt + audio_placeholder
 
             messages: list[dict[str, str]] = []
             if system_prompt:
                 messages.append({"role": "system", "content": system_prompt})
-            messages.append({"role": "user", "content": self.TRANSCRIBE_PROMPT + audio_placeholder})
+            messages.append({"role": "user", "content": user_content})
 
             chat_result = self.tokenizer.apply_chat_template(
                 messages,
@@ -636,6 +643,7 @@ class ASRModel(PreTrainedModel, GenerationMixin):
         input_features: torch.Tensor,
         audio_attention_mask: torch.Tensor,
         system_prompt: Optional[str] = None,
+        user_prompt: Optional[str] = None,
         **generate_kwargs,
     ) -> Iterator[str]:
         """Generate transcription with streaming token output.
@@ -647,6 +655,7 @@ class ASRModel(PreTrainedModel, GenerationMixin):
             input_features: Mel spectrogram features (batch, n_mels, mel_len)
             audio_attention_mask: Mask for real vs padded mel frames (batch, mel_len)
             system_prompt: Optional system prompt override
+            user_prompt: Optional user prompt override (default: "Transcribe: ")
             **generate_kwargs: Additional generation arguments
 
         Yields:
@@ -663,11 +672,18 @@ class ASRModel(PreTrainedModel, GenerationMixin):
         audio_placeholder = "<audio>" * num_audio_tokens
 
         system_prompt = system_prompt or self.system_prompt
+        transcribe_prompt = user_prompt or self.user_prompt
+
+        # Replace single <audio> placeholder with correct number of tokens
+        if "<audio>" in transcribe_prompt:
+            user_content = transcribe_prompt.replace("<audio>", audio_placeholder)
+        else:
+            user_content = transcribe_prompt + audio_placeholder
 
         messages: list[dict[str, str]] = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": self.TRANSCRIBE_PROMPT + audio_placeholder})
+        messages.append({"role": "user", "content": user_content})
 
         chat_result = self.tokenizer.apply_chat_template(
             messages,

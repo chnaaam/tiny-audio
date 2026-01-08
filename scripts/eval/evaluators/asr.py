@@ -46,7 +46,16 @@ class LocalEvaluator(Evaluator):
             wav_bytes = prepare_wav_bytes(audio)
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
                 temp_file.write(wav_bytes)
+
+                print(">>> Audio file: ", temp_file.path, temp_file.name)
                 audio = temp_file.name
+
+        print(">>> Audio input: ", audio)
+
+        # Save audio to file
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
+            temp_file.write(wav_bytes)
+            audio = temp_file.name
 
         start = time.time()
         if self.user_prompt:
@@ -127,9 +136,7 @@ class LocalStreamingEvaluator(Evaluator):
             audio_array,
             return_tensors="pt",
         )
-        input_features = inputs["input_features"].to(
-            device=self.model.device, dtype=self.model.dtype
-        )
+        input_features = inputs["input_features"].to(device=self.model.device, dtype=self.model.dtype)
         audio_attention_mask = inputs["audio_attention_mask"].to(self.model.device)
 
         # Set up streamer to capture first token time
@@ -166,11 +173,7 @@ class LocalStreamingEvaluator(Evaluator):
 
         # Calculate timing metrics
         processing_time = processing_end - generation_start[0] if generation_start[0] else 0
-        ttfb = (
-            (first_token_time[0] - generation_start[0])
-            if first_token_time[0] and generation_start[0]
-            else None
-        )
+        ttfb = (first_token_time[0] - generation_start[0]) if first_token_time[0] and generation_start[0] else None
 
         # Store for aggregation
         self.processing_times.append(processing_time)
@@ -352,9 +355,7 @@ class AssemblyAIStreamingEvaluator(Evaluator):
         session_done.wait(timeout=30)
 
         # Calculate timing metrics
-        ttfb = (
-            (first_transcript_time[0] - stream_start_time[0]) if first_transcript_time[0] else None
-        )
+        ttfb = (first_transcript_time[0] - stream_start_time[0]) if first_transcript_time[0] else None
         # Processing time = time from last audio chunk sent to final transcript received
         # Can be negative if transcript arrives before we finish sending (real-time processing)
         if final_transcript_time[0]:
@@ -382,9 +383,7 @@ class AssemblyAIStreamingEvaluator(Evaluator):
 
         full_transcript = " ".join(transcripts[k] for k in sorted(transcripts.keys()))
         # Return total elapsed time (stream start to final transcript) for consistency with other evaluators
-        total_elapsed = (
-            (final_transcript_time[0] - stream_start_time[0]) if final_transcript_time[0] else 0
-        )
+        total_elapsed = (final_transcript_time[0] - stream_start_time[0]) if final_transcript_time[0] else 0
         return full_transcript, total_elapsed
 
     def compute_metrics(self) -> dict:

@@ -316,6 +316,8 @@ class ASRPipeline(transformers.AutomaticSpeechRecognitionPipeline):
         kwargs.pop("min_speakers", None)
         kwargs.pop("max_speakers", None)
         kwargs.pop("hf_token", None)
+        kwargs.pop("user_prompt", None)
+        kwargs.pop("system_prompt", None)
 
         return super()._sanitize_parameters(**kwargs)
 
@@ -334,6 +336,8 @@ class ASRPipeline(transformers.AutomaticSpeechRecognitionPipeline):
             min_speakers: Minimum number of speakers (for diarization)
             max_speakers: Maximum number of speakers (for diarization)
             hf_token: HuggingFace token for pyannote models (or set HF_TOKEN env var)
+            user_prompt: Custom user prompt (default: "Transcribe: ")
+            system_prompt: Custom system prompt
             **kwargs: Additional arguments passed to the pipeline
 
         Returns:
@@ -349,6 +353,9 @@ class ASRPipeline(transformers.AutomaticSpeechRecognitionPipeline):
             "max_speakers": kwargs.pop("max_speakers", None),
             "hf_token": kwargs.pop("hf_token", None),
         }
+        # Store prompt params for _forward
+        self._user_prompt = kwargs.pop("user_prompt", None)
+        self._system_prompt = kwargs.pop("system_prompt", None)
 
         if return_speakers:
             return_timestamps = True
@@ -450,6 +457,12 @@ class ASRPipeline(transformers.AutomaticSpeechRecognitionPipeline):
 
         input_features = model_inputs["input_features"].to(self.model.device)
         audio_attention_mask = model_inputs["attention_mask"].to(self.model.device)
+
+        # Add prompt params if set
+        if hasattr(self, "_user_prompt") and self._user_prompt:
+            generate_kwargs["user_prompt"] = self._user_prompt
+        if hasattr(self, "_system_prompt") and self._system_prompt:
+            generate_kwargs["system_prompt"] = self._system_prompt
 
         generated_ids = self.model.generate(
             input_features=input_features,

@@ -15,7 +15,7 @@ class ASRConfig(transformers.PretrainedConfig):
         model_dtype: str = "bfloat16",
         num_beams: Optional[int] = None,
         system_prompt: str = "You are a helpful assistant.",
-        user_prompt: str = "Please transcribe this English audio into text: <audio>",
+        user_prompt: str = "Please transcribe this Korean audio into text: <audio>",
         encoder_dim: Optional[int] = None,
         llm_dim: Optional[int] = None,
         # Encoder conv layers: list of (padding, kernel_size, stride) tuples
@@ -112,24 +112,14 @@ class ASRConfig(transformers.PretrainedConfig):
 
         # Generation parameters (use explicit value if provided, else use default)
         self.num_beams = num_beams if num_beams is not None else generation_defaults["num_beams"]
-        self.max_new_tokens = (
-            max_new_tokens if max_new_tokens is not None else generation_defaults["max_new_tokens"]
-        )
-        self.min_new_tokens = (
-            min_new_tokens if min_new_tokens is not None else generation_defaults["min_new_tokens"]
-        )
+        self.max_new_tokens = max_new_tokens if max_new_tokens is not None else generation_defaults["max_new_tokens"]
+        self.min_new_tokens = min_new_tokens if min_new_tokens is not None else generation_defaults["min_new_tokens"]
         self.repetition_penalty = (
-            repetition_penalty
-            if repetition_penalty is not None
-            else generation_defaults["repetition_penalty"]
+            repetition_penalty if repetition_penalty is not None else generation_defaults["repetition_penalty"]
         )
-        self.length_penalty = (
-            length_penalty if length_penalty is not None else generation_defaults["length_penalty"]
-        )
+        self.length_penalty = length_penalty if length_penalty is not None else generation_defaults["length_penalty"]
         self.no_repeat_ngram_size = (
-            no_repeat_ngram_size
-            if no_repeat_ngram_size is not None
-            else generation_defaults["no_repeat_ngram_size"]
+            no_repeat_ngram_size if no_repeat_ngram_size is not None else generation_defaults["no_repeat_ngram_size"]
         )
         self.use_cache = use_cache if use_cache is not None else generation_defaults["use_cache"]
 
@@ -141,9 +131,7 @@ class ASRConfig(transformers.PretrainedConfig):
             self.audio_config = kwargs.pop("audio_config")
 
         if "text_config" not in kwargs:
-            self.text_config = transformers.AutoConfig.from_pretrained(
-                text_model_id, trust_remote_code=True
-            )
+            self.text_config = transformers.AutoConfig.from_pretrained(text_model_id, trust_remote_code=True)
             # Override dtype to match model_dtype
             self.text_config.dtype = model_dtype
         else:

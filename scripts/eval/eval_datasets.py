@@ -114,7 +114,7 @@ DATASET_REGISTRY: dict[str, DatasetConfig] = {
     "zeroth_korean": DatasetConfig(
         name="zeroth_korean",
         path="kresnik/zeroth_korean",
-        audio_field="wav",
+        audio_field="audio",
         text_field="text",
         default_split="test",
     ),
